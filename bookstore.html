@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Nook - Simple E-commerce</title>
+    <!-- Load Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-blue': '#3b82f6',
+                        'secondary-gray': '#e5e7eb',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Ensures the whole page uses the Inter font and centers content vertically/horizontally */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .page {
+            /* Basic styling for the main content area */
+            min-height: calc(100vh - 80px); /* Full height minus header */
+            padding-top: 20px;
+        }
+        /* Custom scrollbar for better look */
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 8px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background-color: #9ca3af;
+            border-radius: 4px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div id="app" class="flex flex-col min-h-screen">
+
+        <!-- Navigation/Header Bar -->
+        <header class="sticky top-0 z-10 bg-white shadow-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-gray-800 tracking-tight">
+                    <span class="text-primary-blue">Book</span> Nook
+                </h1>
+                <nav class="flex items-center space-x-4">
+                    <button id="nav-home" onclick="navigate('home')" class="text-gray-600 hover:text-primary-blue transition duration-150 font-medium">
+                        Home
+                    </button>
+                    <button id="nav-order" onclick="navigate('order')" class="relative text-gray-600 hover:text-primary-blue transition duration-150 font-medium">
+                        Cart
+                        <span id="cart-count" class="absolute -top-2 -right-3 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                            0
+                        </span>
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+            <!-- Page Containers - Only one will be visible at a time -->
+            <div id="home-page" class="page"></div>
+            <div id="order-page" class="page hidden"></div>
+            <div id="confirmation-page" class="page hidden"></div>
+        </main>
+
+        <!-- Notification Message Box -->
+        <div id="notification-box" class="fixed top-20 right-4 p-4 rounded-lg shadow-xl text-white transform transition-transform duration-300 translate-x-full hidden z-20">
+            <!-- Notification content will be injected here -->
+        </div>
+
+    </div>
+
+    <script>
+        // --- DATA SETUP ---
+        const books = [
+            { id: 1, title: "The Cosmic Voyager", author: "A. Clarke", price: 19.99, image: "https://placehold.co/100x150/1e293b/f8fafc?text=Sci-Fi" },
+            { id: 2, title: "Garden of Shadows", author: "E. Bronte", price: 14.50, image: "https://placehold.co/100x150/475569/f8fafc?text=Classic" },
+            { id: 3, title: "The Financial Fortress", author: "B. Graham", price: 29.00, image: "https://placehold.co/100x150/0f766e/f8fafc?text=Finance" },
+            { id: 4, title: "The Last Detective", author: "R. Chandler", price: 12.75, image: "https://placehold.co/100x150/7c3aed/f8fafc?text=Mystery" },
+            { id: 5, title: "Midnight Soliloquy", author: "V. Woolf", price: 18.00, image: "https://placehold.co/100x150/374151/f8fafc?text=Modern" },
+            { id: 6, title: "The AI Revolution", author: "G. Turing", price: 35.50, image: "https://placehold.co/100x150/4f46e5/f8fafc?text=Tech" },
+        ];
+
+        // --- STATE MANAGEMENT ---
+        let cart = [];
+        let currentPage = 'home';
+        let finalOrder = null;
+
+        const homePage = document.getElementById('home-page');
+        const orderPage = document.getElementById('order-page');
+        const confirmationPage = document.getElementById('confirmation-page');
+        const cartCountElement = document.getElementById('cart-count');
+        const notificationBox = document.getElementById('notification-box');
+
+        // --- HELPER FUNCTIONS ---
+
+        /**
+         * Shows a notification message on the screen.
+         * @param {string} message - The message to display.
+         * @param {string} type - 'success' or 'error'.
+         */
+        function showNotification(message, type) {
+            notificationBox.textContent = message;
+            notificationBox.className = 'fixed top-20 right-4 p-4 rounded-lg shadow-xl text-white transform transition-transform duration-300 z-20';
+
+            if (type === 'success') {
+                notificationBox.classList.add('bg-green-500');
+            } else if (type === 'error') {
+                notificationBox.classList.add('bg-red-500');
+            } else {
+                notificationBox.classList.add('bg-primary-blue');
+            }
+
+            // Slide in
+            setTimeout(() => {
+                notificationBox.classList.remove('translate-x-full', 'hidden');
+                notificationBox.classList.add('translate-x-0');
+            }, 50);
+
+            // Slide out after 3 seconds
+            setTimeout(() => {
+                notificationBox.classList.remove('translate-x-0');
+                notificationBox.classList.add('translate-x-full');
+            }, 3000);
+
+            // Hide element fully after transition
+             setTimeout(() => {
+                notificationBox.classList.add('hidden');
+            }, 3500);
+        }
+
+        /**
+         * Updates the cart count badge in the header.
+         */
+        function updateCartCount() {
+            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+            cartCountElement.textContent = totalItems;
+            if (totalItems > 0) {
+                cartCountElement.classList.remove('hidden');
+            } else {
+                cartCountElement.classList.add('hidden');
+            }
+        }
+
+        // --- NAVIGATION LOGIC ---
+
+        /**
+         * Switches the view between the different pages.
+         * @param {string} pageName - 'home', 'order', or 'confirmation'.
+         */
+        function navigate(pageName) {
+            currentPage = pageName;
+            homePage.classList.add('hidden');
+            orderPage.classList.add('hidden');
+            confirmationPage.classList.add('hidden');
+
+            switch (pageName) {
+                case 'home':
+                    homePage.classList.remove('hidden');
+                    renderHomePage();
+                    break;
+                case 'order':
+                    orderPage.classList.remove('hidden');
+                    renderOrderPage();
+                    break;
+                case 'confirmation':
+                    confirmationPage.classList.remove('hidden');
+                    renderConfirmationPage();
+                    break;
+                default:
+                    homePage.classList.remove('hidden');
+                    renderHomePage();
+            }
+            // Scroll to top when navigating
+            window.scrollTo(0, 0);
+        }
+
+        // --- CART LOGIC ---
+
+        /**
+         * Adds a book to the cart or increments its quantity.
+         * @param {number} bookId - ID of the book.
+         */
+        function addToCart(bookId) {
+            const book = books.find(b => b.id === bookId);
+            if (!book) return;
+
+            const existingItem = cart.find(item => item.id === bookId);
+
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                cart.push({ ...book, quantity: 1 });
+            }
+
+            updateCartCount();
+            showNotification(`"${book.title}" added to cart!`, 'success');
+        }
+
+        /**
+         * Updates the quantity of an item in the cart.
+         * @param {number} bookId - ID of the book.
+         * @param {number} quantity - New quantity.
+         */
+        function updateQuantity(bookId, quantity) {
+            const num = parseInt(quantity);
+            const itemIndex = cart.findIndex(item => item.id === bookId);
+
+            if (itemIndex > -1) {
+                if (num > 0) {
+                    cart[itemIndex].quantity = num;
+                } else {
+                    // Remove item if quantity is 0 or less
+                    cart.splice(itemIndex, 1);
+                    showNotification("Item removed from cart.", 'error');
+                }
+            }
+            updateCartCount();
+            // Re-render the order page to update totals
+            if (currentPage === 'order') {
+                renderOrderPage();
+            }
+        }
+
+        /**
+         * Simulates placing an order.
+         */
+        function placeOrder() {
+            const name = document.getElementById('customer-name').value.trim();
+            const email = document.getElementById('customer-email').value.trim();
+            const address = document.getElementById('customer-address').value.trim();
+
+            if (!name || !email || !address) {
+                showNotification("Please fill in all required delivery fields.", 'error');
+                return;
+            }
+
+            if (cart.length === 0) {
+                showNotification("Your cart is empty!", 'error');
+                return;
+            }
+
+            // Calculate final totals
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const taxRate = 0.05;
+            const shipping = subtotal > 50 ? 0.00 : 7.50;
+            const tax = subtotal * taxRate;
+            const total = subtotal + tax + shipping;
+
+            // Store final order data
+            finalOrder = {
+                items: JSON.parse(JSON.stringify(cart)), // Deep copy cart
+                customer: { name, email, address },
+                totals: { subtotal, tax, shipping, total }
+            };
+
+            // Clear the live cart
+            cart = [];
+            updateCartCount();
+
+            // Navigate to confirmation page
+            navigate('confirmation');
+            showNotification("Order placed successfully!", 'success');
+        }
+
+        // --- RENDERING FUNCTIONS ---
+
+        /**
+         * Renders the Home Page (Product Listing).
+         */
+        function renderHomePage() {
+            homePage.innerHTML = `
+                <div class="space-y-6">
+                    <h2 class="text-4xl font-extrabold text-gray-900 border-b-2 border-primary-blue pb-2 mb-8">Featured Books</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        ${books.map(book => `
+                            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 overflow-hidden flex flex-col">
+                                <div class="p-4 flex flex-col sm:flex-row items-center sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
+                                    <img src="${book.image}" onerror="this.onerror=null; this.src='https://placehold.co/100x150/d1d5db/4b5563?text=Book+Cover'" alt="Cover of ${book.title}" class="w-20 h-30 flex-shrink-0 rounded-lg shadow-md">
+                                    <div class="flex-grow text-center sm:text-left">
+                                        <h3 class="text-xl font-semibold text-gray-800">${book.title}</h3>
+                                        <p class="text-sm text-gray-500 italic">by ${book.author}</p>
+                                        <p class="text-2xl font-bold text-primary-blue mt-2">$${book.price.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                                <div class="p-4 pt-0">
+                                    <button
+                                        onclick="addToCart(${book.id})"
+                                        class="w-full bg-primary-blue text-white py-2 rounded-lg font-semibold hover:bg-blue-600 transition duration-150 shadow-md transform hover:scale-[1.01] active:scale-[0.99]"
+                                    >
+                                        Add to Cart
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renders the Order Page (Cart and Checkout Form).
+         */
+        function renderOrderPage() {
+            if (cart.length === 0) {
+                orderPage.innerHTML = `
+                    <div class="text-center p-10 bg-white rounded-xl shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <h2 class="mt-2 text-2xl font-semibold text-gray-900">Your Cart is Empty</h2>
+                        <p class="mt-1 text-md text-gray-500">Add some books from the <button onclick="navigate('home')" class="text-primary-blue hover:underline">Home</button> page to start your order.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const taxRate = 0.05;
+            const shipping = subtotal > 50 ? 0.00 : 7.50;
+            const tax = subtotal * taxRate;
+            const total = subtotal + tax + shipping;
+
+            const cartItemsHtml = cart.map(item => `
+                <div class="flex justify-between items-center py-4 border-b border-gray-100">
+                    <div class="flex items-center space-x-4">
+                        <img src="${item.image}" onerror="this.onerror=null; this.src='https://placehold.co/60x90/d1d5db/4b5563?text=Book'" alt="Cover" class="w-10 h-15 rounded-md shadow-sm">
+                        <div>
+                            <p class="font-semibold text-gray-800">${item.title}</p>
+                            <p class="text-sm text-gray-500">$${item.price.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <label for="qty-${item.id}" class="sr-only">Quantity</label>
+                        <input
+                            type="number"
+                            id="qty-${item.id}"
+                            value="${item.quantity}"
+                            min="0"
+                            onchange="updateQuantity(${item.id}, this.value)"
+                            class="w-16 p-2 border border-gray-300 rounded-lg text-center focus:ring-primary-blue focus:border-primary-blue transition"
+                        >
+                        <p class="font-bold text-gray-900 w-20 text-right">$${(item.price * item.quantity).toFixed(2)}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            orderPage.innerHTML = `
+                <div class="max-w-4xl mx-auto space-y-8">
+                    <h2 class="text-4xl font-extrabold text-gray-900 border-b-2 border-primary-blue pb-2">Your Shopping Cart & Checkout</h2>
+
+                    <div class="lg:grid lg:grid-cols-3 lg:gap-8">
+                        <!-- Left Column: Cart Summary and Items -->
+                        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
+                            <h3 class="text-2xl font-bold mb-4 border-b pb-2">Order Details (${cart.length} unique items)</h3>
+                            <div class="max-h-[400px] overflow-y-auto">
+                                ${cartItemsHtml}
+                            </div>
+                            <div class="mt-6 space-y-2 pt-4 border-t-2 border-dashed border-gray-200">
+                                <div class="flex justify-between text-gray-600">
+                                    <span>Subtotal:</span>
+                                    <span>$${subtotal.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between text-gray-600">
+                                    <span>Shipping (>$50 Free):</span>
+                                    <span>${shipping > 0 ? `$${shipping.toFixed(2)}` : 'FREE'}</span>
+                                </div>
+                                <div class="flex justify-between text-gray-600">
+                                    <span>Estimated Tax (5%):</span>
+                                    <span>$${tax.toFixed(2)}</span>
+                                </div>
+                                <div class="flex justify-between text-2xl font-extrabold text-primary-blue pt-3 border-t">
+                                    <span>Order Total:</span>
+                                    <span>$${total.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Shipping/Payment Form -->
+                        <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg mt-8 lg:mt-0">
+                            <h3 class="text-2xl font-bold mb-4 border-b pb-2">Delivery Information</h3>
+                            <form id="checkout-form" onsubmit="event.preventDefault(); placeOrder();" class="space-y-4">
+                                <div>
+                                    <label for="customer-name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                                    <input type="text" id="customer-name" required placeholder="John Doe"
+                                        class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue transition">
+                                </div>
+                                <div>
+                                    <label for="customer-email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                                    <input type="email" id="customer-email" required placeholder="john@example.com"
+                                        class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue transition">
+                                </div>
+                                <div>
+                                    <label for="customer-address" class="block text-sm font-medium text-gray-700">Shipping Address</label>
+                                    <textarea id="customer-address" rows="3" required placeholder="123 Main St, Anytown, USA"
+                                        class="mt-1 block w-full border-gray-300 rounded-lg shadow-sm p-3 focus:ring-primary-blue focus:border-primary-blue transition"></textarea>
+                                </div>
+
+                                <!-- Payment Placeholder -->
+                                <div class="bg-secondary-gray p-4 rounded-lg border border-gray-300">
+                                    <p class="text-sm font-medium text-gray-700">Payment Method</p>
+                                    <p class="text-xs text-gray-500">Placeholder: Payment successful upon clicking 'Place Order'</p>
+                                </div>
+
+                                <button type="submit"
+                                    class="w-full bg-green-500 text-white py-3 mt-4 rounded-lg font-semibold text-lg hover:bg-green-600 transition duration-150 shadow-md transform hover:scale-[1.01] active:scale-[0.99]"
+                                >
+                                    Place Order - $${total.toFixed(2)}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renders the Confirmation Page.
+         */
+        function renderConfirmationPage() {
+            if (!finalOrder) {
+                confirmationPage.innerHTML = `
+                    <div class="text-center p-10 bg-white rounded-xl shadow-lg">
+                        <h2 class="mt-2 text-2xl font-semibold text-gray-900">No Recent Order Found</h2>
+                        <p class="mt-1 text-md text-gray-500">Start shopping on the <button onclick="navigate('home')" class="text-primary-blue hover:underline">Home</button> page.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const itemsHtml = finalOrder.items.map(item => `
+                <li class="flex justify-between py-2 border-b border-gray-100">
+                    <span class="text-gray-700">${item.title} (x${item.quantity})</span>
+                    <span class="font-medium text-gray-900">$${(item.price * item.quantity).toFixed(2)}</span>
+                </li>
+            `).join('');
+
+            confirmationPage.innerHTML = `
+                <div class="max-w-3xl mx-auto p-8 bg-white rounded-2xl shadow-2xl text-center">
+                    <div class="bg-green-100 p-4 rounded-full inline-block">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <h2 class="text-4xl font-extrabold text-green-600 mt-4">Order Confirmed!</h2>
+                    <p class="text-xl text-gray-600 mt-2">Thank you for your purchase, ${finalOrder.customer.name}!</p>
+                    <p class="text-md text-gray-500 mt-1">Your order will be shipped to: <span class="font-semibold">${finalOrder.customer.address}</span></p>
+
+                    <div class="mt-8 text-left border-t border-gray-200 pt-6">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">Order Summary</h3>
+
+                        <!-- Item List -->
+                        <ul class="divide-y divide-gray-200">
+                            ${itemsHtml}
+                        </ul>
+
+                        <!-- Totals -->
+                        <div class="mt-6 space-y-2 border-t pt-4">
+                            <div class="flex justify-between text-gray-600"><span>Subtotal:</span><span>$${finalOrder.totals.subtotal.toFixed(2)}</span></div>
+                            <div class="flex justify-between text-gray-600"><span>Shipping:</span><span>${finalOrder.totals.shipping > 0 ? `$${finalOrder.totals.shipping.toFixed(2)}` : 'FREE'}</span></div>
+                            <div class="flex justify-between text-gray-600"><span>Tax (5%):</span><span>$${finalOrder.totals.tax.toFixed(2)}</span></div>
+                            <div class="flex justify-between text-2xl font-extrabold text-primary-blue pt-3 border-t">
+                                <span>Total Paid:</span>
+                                <span>$${finalOrder.totals.total.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        onclick="navigate('home')"
+                        class="mt-8 bg-primary-blue text-white py-3 px-6 rounded-lg font-semibold text-lg hover:bg-blue-600 transition duration-150 shadow-md transform hover:scale-[1.01] active:scale-[0.99]"
+                    >
+                        Continue Shopping
+                    </button>
+                </div>
+            `;
+        }
+
+
+        // --- INITIALIZATION ---
+        window.onload = () => {
+            updateCartCount();
+            navigate('home'); // Start on the home page
+        };
+    </script>
+</body>
+</html>
